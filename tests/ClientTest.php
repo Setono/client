@@ -42,4 +42,15 @@ final class ClientTest extends TestCase
 
         self::assertSame($metadata, $client->metadata);
     }
+
+    /**
+     * @test
+     */
+    public function it_json_serializes(): void
+    {
+        $client = new Client('id', ['foo' => 'bar', 'bar' => 'baz']);
+        $json = json_encode($client);
+
+        self::assertSame('{"id":"id","metadata":{"foo":"bar","bar":"baz"}}', $json);
+    }
 }
