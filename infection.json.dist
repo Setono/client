@@ -1,0 +1,16 @@
+{
+    "source": {
+        "directories": [
+            "src"
+        ]
+    },
+    "logs": {
+        "text": "php://stderr",
+        "github": true,
+        "stryker": {
+            "badge": "master"
+        }
+    },
+    "minMsi": 46.88,
+    "minCoveredMsi": 62.5
+}
