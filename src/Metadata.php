@@ -83,4 +83,9 @@ final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \J
     {
         return $this->metadata;
     }
+
+    public function toArray(): array
+    {
+        return $this->metadata;
+    }
 }

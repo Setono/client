@@ -32,6 +32,7 @@ final class MetadataTest extends TestCase
         self::assertSame('baz', $metadata['bar']);
         self::assertTrue(isset($metadata['foo']));
         self::assertTrue(isset($metadata['bar']));
+        self::assertSame(['foo' => 'bar', 'bar' => 'baz'], $metadata->toArray());
 
         $metadata->remove('foo');
         unset($metadata['bar']);
