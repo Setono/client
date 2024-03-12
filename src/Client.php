@@ -23,9 +23,9 @@ final class Client implements \Stringable
     public function __construct(string $id = null, array|Metadata $metadata = [])
     {
         if (null === $id) {
-            $id = match (true) {
-                class_exists('Symfony\Component\Uid\Uuid') => (string) call_user_func(['Symfony\Component\Uid\Uuid', 'v7']),
-                class_exists('Ramsey\Uuid\Uuid') => (string) call_user_func(['Ramsey\Uuid\Uuid', 'uuid7']),
+            $id = (string) match (true) {
+                class_exists(\Symfony\Component\Uid\Uuid::class) => \Symfony\Component\Uid\Uuid::v7(),
+                class_exists(\Ramsey\Uuid\Uuid::class) => \Ramsey\Uuid\Uuid::uuid7(),
                 default => throw new \RuntimeException('You need to install symfony/uid or ramsey/uuid to generate a UUID'),
             };
         }
