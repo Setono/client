@@ -12,9 +12,39 @@
 composer require setono/client
 ```
 
+If you don't use your own client id generation strategy, you should also install either the symfony/uid or ramsey/uuid package:
+
+```bash
+# If you want to use symfony/uid
+composer require symfony/uid
+
+# If you want to use ramsey/uuid
+composer require ramsey/uuid
+```
+
 ## Usage
 
-TOOD
+```php
+use Setono\Client\Client;
+
+// initialization with a generated id and an empty metadata object
+$client = new Client();
+
+// initialization with your own id and existing metadata
+$client = new Client('my-client-id', ['foo' => 'bar']);
+
+// get the client id
+$id = $client->id;
+
+// set metadata
+$client->metadata->set('foo', 'bar');
+
+// get metadata
+$client->metadata->get('foo');
+
+// remove metadata
+$client->metadata->remove('foo');
+```
 
 [ico-version]: https://poser.pugx.org/setono/client/v/stable
 [ico-license]: https://poser.pugx.org/setono/client/license
