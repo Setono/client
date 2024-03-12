@@ -30,6 +30,8 @@ final class MetadataTest extends TestCase
         self::assertCount(2, $metadata);
         self::assertSame('bar', $metadata->get('foo'));
         self::assertSame('baz', $metadata['bar']);
+        self::assertTrue(isset($metadata['foo']));
+        self::assertTrue(isset($metadata['bar']));
 
         $metadata->remove('foo');
         unset($metadata['bar']);
@@ -46,6 +48,20 @@ final class MetadataTest extends TestCase
         $metadata = new Metadata(['foo' => 'bar', 'bar' => 'baz']);
 
         self::assertSame('{"foo":"bar","bar":"baz"}', json_encode($metadata));
+    }
+
+    /**
+     * @test
+     */
+    public function it_iterates(): void
+    {
+        $metadata = new Metadata();
+        $metadata->set('foo', 'bar');
+
+        foreach ($metadata as $key => $value) {
+            self::assertSame('foo', $key);
+            self::assertSame('bar', $value);
+        }
     }
 
     /**
