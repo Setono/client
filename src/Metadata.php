@@ -18,6 +18,9 @@ final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate
     ) {
     }
 
+    /**
+     * @psalm-assert-if-true mixed $this->metadata[$key]
+     */
     public function has(string $key): bool
     {
         return isset($this->metadata[$key]);
@@ -25,6 +28,10 @@ final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate
 
     public function get(string $key): mixed
     {
+        if (!$this->has($key)) {
+            throw new \InvalidArgumentException(sprintf('The key %s does not exist', $key));
+        }
+
         return $this->metadata[$key];
     }
 

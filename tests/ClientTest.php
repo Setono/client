@@ -21,4 +21,25 @@ final class ClientTest extends TestCase
         self::assertInstanceOf(UuidV7::class, $uuid);
         self::assertInstanceOf(Metadata::class, $client->metadata);
     }
+
+    /**
+     * @test
+     */
+    public function it_instantiates_with_metadata_array(): void
+    {
+        $client = new Client(metadata: ['foo' => 'bar']);
+
+        self::assertInstanceOf(Metadata::class, $client->metadata);
+    }
+
+    /**
+     * @test
+     */
+    public function it_instantiates_with_metadata_object(): void
+    {
+        $metadata = new Metadata(['foo' => 'bar']);
+        $client = new Client(metadata: $metadata);
+
+        self::assertSame($metadata, $client->metadata);
+    }
 }
