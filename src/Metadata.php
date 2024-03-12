@@ -8,7 +8,7 @@ namespace Setono\Client;
  * @implements \ArrayAccess<string, mixed>
  * @implements \IteratorAggregate<string, mixed>
  */
-final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate
+final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSerializable
 {
     public function __construct(
         /**
@@ -40,6 +40,11 @@ final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate
         $this->metadata[$key] = $value;
     }
 
+    public function remove(string $key): void
+    {
+        unset($this->metadata[$key]);
+    }
+
     public function offsetExists($offset): bool
     {
         return $this->has($offset);
@@ -61,7 +66,7 @@ final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate
 
     public function offsetUnset($offset): void
     {
-        unset($this->metadata[$offset]);
+        $this->remove($offset);
     }
 
     public function count(): int
@@ -72,5 +77,10 @@ final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate
     public function getIterator(): \ArrayIterator
     {
         return new \ArrayIterator($this->metadata);
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->metadata;
     }
 }
