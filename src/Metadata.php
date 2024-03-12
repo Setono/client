@@ -8,7 +8,7 @@ namespace Setono\Client;
  * @implements \ArrayAccess<string, mixed>
  * @implements \IteratorAggregate<string, mixed>
  */
-final class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSerializable
+class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSerializable
 {
     public function __construct(
         /**

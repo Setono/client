@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Setono\Client;
 
-final class Client implements \Stringable, \JsonSerializable
+class Client implements \Stringable, \JsonSerializable
 {
     /**
      * The unique identifier of the client. This could be a UUID for example
