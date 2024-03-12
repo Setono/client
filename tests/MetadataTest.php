@@ -47,4 +47,25 @@ final class MetadataTest extends TestCase
 
         self::assertSame('{"foo":"bar","bar":"baz"}', json_encode($metadata));
     }
+
+    /**
+     * @test
+     */
+    public function it_throws_exception_if_trying_to_get_missing_key(): void
+    {
+        $metadata = new Metadata();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $metadata->get('foo');
+    }
+
+    /**
+     * @test
+     */
+    public function it_throws_exception_if_trying_to_set_with_null_key(): void
+    {
+        $metadata = new Metadata();
+        $this->expectException(\InvalidArgumentException::class);
+        $metadata[] = 'test';
+    }
 }

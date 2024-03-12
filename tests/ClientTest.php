@@ -53,4 +53,15 @@ final class ClientTest extends TestCase
 
         self::assertSame('{"id":"id","metadata":{"foo":"bar","bar":"baz"}}', $json);
     }
+
+    /**
+     * @test
+     */
+    public function it_is_stringable(): void
+    {
+        $client = new Client('id', ['foo' => 'bar', 'bar' => 'baz']);
+
+        self::assertSame('id', $client->toString());
+        self::assertSame('id', (string) $client);
+    }
 }
