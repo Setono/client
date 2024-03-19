@@ -13,9 +13,9 @@ final class CookieTest extends TestCase
      */
     public function it_instantiates(): void
     {
-        $lastSeenAt = time();
+        $lastSeenAt = time() - 10;
         $firstSeenAt = $lastSeenAt - 1;
-        $cookie = new Cookie('client_id', 2, $firstSeenAt, $lastSeenAt);
+        $cookie = new Cookie('client_id', firstSeenAt: $firstSeenAt, lastSeenAt: $lastSeenAt);
 
         self::assertSame('client_id', $cookie->clientId);
         self::assertSame(2, $cookie->version);
@@ -59,6 +59,20 @@ final class CookieTest extends TestCase
         $cookie = Cookie::fromString(sprintf('2.%d.%d.client_id', $now, $now));
 
         self::assertSame('client_id', $cookie->clientId);
+        self::assertSame(2, $cookie->version);
+        self::assertSame($now, $cookie->firstSeenAt);
+        self::assertSame($now, $cookie->lastSeenAt);
+    }
+
+    /**
+     * @test
+     */
+    public function it_accepts_client_id_with_dot(): void
+    {
+        $now = time();
+        $cookie = Cookie::fromString(sprintf('2.%d.%d.client_id.with.dot', $now, $now));
+
+        self::assertSame('client_id.with.dot', $cookie->clientId);
         self::assertSame(2, $cookie->version);
         self::assertSame($now, $cookie->firstSeenAt);
         self::assertSame($now, $cookie->lastSeenAt);
