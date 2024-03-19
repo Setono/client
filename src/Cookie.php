@@ -51,25 +51,22 @@ class Cookie implements \Stringable
             throw new \InvalidArgumentException('The cookie is not valid');
         }
 
-        $version = $parts[0];
+        [$version, $firstSeenAt, $lastSeenAt, $clientId] = $parts;
+
         if (!is_numeric($version)) {
             throw new \InvalidArgumentException('The version part of the cookie is not valid');
         }
         $version = (int) $version;
 
-        $firstSeenAt = $parts[1];
         if (!is_numeric($firstSeenAt)) {
             throw new \InvalidArgumentException('The first seen at part of the cookie is not valid');
         }
         $firstSeenAt = (int) $firstSeenAt;
 
-        $lastSeenAt = $parts[2];
         if (!is_numeric($lastSeenAt)) {
             throw new \InvalidArgumentException('The last seen at part of the cookie is not valid');
         }
         $lastSeenAt = (int) $lastSeenAt;
-
-        $clientId = $parts[3];
 
         return new self($clientId, $version, $firstSeenAt, $lastSeenAt);
     }
