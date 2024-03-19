@@ -38,6 +38,10 @@ class Cookie implements \Stringable
      */
     public static function fromString(string $cookie): self
     {
+        if ('' === $cookie) {
+            throw new \InvalidArgumentException('The cookie is not valid');
+        }
+
         $parts = explode('.', $cookie, 4);
         if (count($parts) === 1) {
             return new self($parts[0], 1);

@@ -13,13 +13,14 @@ final class CookieTest extends TestCase
      */
     public function it_instantiates(): void
     {
-        $now = time();
-        $cookie = new Cookie('client_id', 2, $now, $now);
+        $lastSeenAt = time();
+        $firstSeenAt = $lastSeenAt - 1;
+        $cookie = new Cookie('client_id', 2, $firstSeenAt, $lastSeenAt);
 
         self::assertSame('client_id', $cookie->clientId);
         self::assertSame(2, $cookie->version);
-        self::assertSame($now, $cookie->firstSeenAt);
-        self::assertSame($now, $cookie->lastSeenAt);
+        self::assertSame($firstSeenAt, $cookie->firstSeenAt);
+        self::assertSame($lastSeenAt, $cookie->lastSeenAt);
     }
 
     /**
@@ -61,5 +62,28 @@ final class CookieTest extends TestCase
         self::assertSame(2, $cookie->version);
         self::assertSame($now, $cookie->firstSeenAt);
         self::assertSame($now, $cookie->lastSeenAt);
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider provideInvalidCookies
+     */
+    public function it_throws_exception_if_cookie_string_is_invalid(string $cookie): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Cookie::fromString($cookie);
+    }
+
+    /**
+     * @return \Generator<array-key, array{string}>
+     */
+    public function provideInvalidCookies(): \Generator
+    {
+        yield [''];
+        yield ['2.123.client_id'];
+        yield ['one.123.123.client_id'];
+        yield ['2.first_seen_at.123.client_id'];
+        yield ['2.123.last_seen_at.client_id'];
     }
 }
