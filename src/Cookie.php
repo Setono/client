@@ -16,7 +16,7 @@ class Cookie implements \Stringable
      */
     public readonly int $lastSeenAt;
 
-    public function __construct(
+    final public function __construct(
         /**
          * A unique identifier for the client
          */
@@ -36,7 +36,7 @@ class Cookie implements \Stringable
     /**
      * @throws \InvalidArgumentException if the cookie is not valid
      */
-    public static function fromString(string $cookie): self
+    public static function fromString(string $cookie): static
     {
         if ('' === $cookie) {
             throw new \InvalidArgumentException('The cookie is not valid');
@@ -44,7 +44,7 @@ class Cookie implements \Stringable
 
         $parts = explode('.', $cookie, 4);
         if (count($parts) === 1) {
-            return new self($parts[0], 1);
+            return new static($parts[0], 1);
         }
 
         if (count($parts) !== 4) {
@@ -68,7 +68,12 @@ class Cookie implements \Stringable
         }
         $lastSeenAt = (int) $lastSeenAt;
 
-        return new self($clientId, $version, $firstSeenAt, $lastSeenAt);
+        return new static($clientId, $version, $firstSeenAt, $lastSeenAt);
+    }
+
+    public function withLastSeenAt(int $lastSeenAt): static
+    {
+        return new static($this->clientId, $this->version, $this->firstSeenAt, $lastSeenAt);
     }
 
     public function toString(): string

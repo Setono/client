@@ -80,6 +80,20 @@ final class CookieTest extends TestCase
 
     /**
      * @test
+     */
+    public function it_has_immutable_last_seen_at_wither(): void
+    {
+        $now = time();
+        $cookie = new Cookie('client_id', 2, $now, $now);
+        $newCookie = $cookie->withLastSeenAt($now + 10);
+
+        self::assertNotSame($cookie, $newCookie);
+        self::assertSame($now, $cookie->lastSeenAt);
+        self::assertSame($now + 10, $newCookie->lastSeenAt);
+    }
+
+    /**
+     * @test
      *
      * @dataProvider provideInvalidCookies
      */
