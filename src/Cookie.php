@@ -44,7 +44,7 @@ class Cookie implements \Stringable
 
         $parts = explode('.', $cookie, 4);
         if (count($parts) === 1) {
-            return new static($parts[0], 1);
+            return new static($parts[0]); // this effectively converts the v1 cookie to a v2 cookie
         }
 
         if (count($parts) !== 4) {

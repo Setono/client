@@ -45,7 +45,7 @@ final class CookieTest extends TestCase
         $cookie = Cookie::fromString('client_id');
 
         self::assertSame('client_id', $cookie->clientId);
-        self::assertSame(1, $cookie->version);
+        self::assertSame(2, $cookie->version);
         self::assertLessThanOrEqual(time(), $cookie->firstSeenAt);
         self::assertLessThanOrEqual(time(), $cookie->lastSeenAt);
     }
