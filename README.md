@@ -46,6 +46,9 @@ $client->metadata->get('foo');
 $client->metadata->remove('foo');
 ```
 
+There's also a `Cookie` class which can be used to store the client id in a cookie.
+
+
 [ico-version]: https://poser.pugx.org/setono/client/v/stable
 [ico-license]: https://poser.pugx.org/setono/client/license
 [ico-github-actions]: https://github.com/setono/client/workflows/build/badge.svg
