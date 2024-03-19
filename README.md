@@ -12,7 +12,8 @@
 composer require setono/client
 ```
 
-If you don't use your own client id generation strategy, you should also install either the symfony/uid or ramsey/uuid package:
+If you don't use your own client id generation strategy, you should also install either
+the [symfony/uid](https://packagist.org/packages/symfony/uid) or the [ramsey/uuid](https://packagist.org/packages/ramsey/uuid) package:
 
 ```bash
 # If you want to use symfony/uid
