@@ -20,6 +20,7 @@
         <pluginClass class="Psalm\PhpUnitPlugin\Plugin"/>
     </plugins>
     <forbiddenFunctions>
+        <function name="echo"/>
         <function name="exit"/>
         <function name="print_r"/>
         <function name="var_dump"/>

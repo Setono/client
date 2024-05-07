@@ -10,9 +10,11 @@ namespace Setono\Client;
  */
 class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSerializable
 {
+    private const EXPIRES_KEY = '__expires';
+
     public function __construct(
         /**
-         * @var array<string, mixed> $metadata
+         * @var array{__expires?: array<string, int>, ...<string, mixed>} $metadata
          */
         private array $metadata = [],
     ) {
@@ -23,7 +25,17 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
      */
     public function has(string $key): bool
     {
-        return isset($this->metadata[$key]);
+        if (!array_key_exists($key, $this->metadata)) {
+            return false;
+        }
+
+        if (isset($this->metadata[self::EXPIRES_KEY][$key]) && $this->metadata[self::EXPIRES_KEY][$key] < time()) {
+            $this->remove($key);
+
+            return false;
+        }
+
+        return true;
     }
 
     public function get(string $key): mixed
@@ -35,14 +47,35 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
         return $this->metadata[$key];
     }
 
-    public function set(string $key, mixed $value): void
+    /**
+     * @param int|null $ttl the time to live for the key (in seconds)
+     *
+     * @throws \InvalidArgumentException if the key is reserved
+     */
+    public function set(string $key, mixed $value, int $ttl = null): void
     {
+        if (self::EXPIRES_KEY === $key) {
+            throw new \InvalidArgumentException(sprintf('The key "%s" is reserved', self::EXPIRES_KEY));
+        }
+
         $this->metadata[$key] = $value;
+
+        if (null !== $ttl) {
+            if (0 >= $ttl) {
+                throw new \InvalidArgumentException('The ttl must be greater than 0');
+            }
+
+            $this->metadata[self::EXPIRES_KEY][$key] = time() + $ttl;
+        }
     }
 
     public function remove(string $key): void
     {
         unset($this->metadata[$key]);
+
+        if (isset($this->metadata[self::EXPIRES_KEY][$key])) {
+            unset($this->metadata[self::EXPIRES_KEY][$key]);
+        }
     }
 
     public function offsetExists($offset): bool
@@ -71,12 +104,16 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
 
     public function count(): int
     {
-        return count($this->metadata);
+        $this->pruneExpired();
+
+        $c = count($this->metadata);
+
+        return isset($this->metadata[self::EXPIRES_KEY]) ? $c - 1 : $c;
     }
 
     public function getIterator(): \ArrayIterator
     {
-        return new \ArrayIterator($this->metadata);
+        return new \ArrayIterator($this->toArray());
     }
 
     public function jsonSerialize(): array
@@ -89,6 +126,26 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
      */
     public function toArray(): array
     {
-        return $this->metadata;
+        $this->pruneExpired();
+
+        $metadata = $this->metadata;
+        unset($metadata[self::EXPIRES_KEY]);
+
+        return $metadata;
+    }
+
+    private function pruneExpired(): void
+    {
+        $now = time();
+
+        foreach ($this->metadata[self::EXPIRES_KEY] ?? [] as $key => $expiresAt) {
+            if ($expiresAt < $now) {
+                $this->remove($key);
+            }
+        }
+
+        if (isset($this->metadata[self::EXPIRES_KEY]) && [] === $this->metadata[self::EXPIRES_KEY]) {
+            unset($this->metadata[self::EXPIRES_KEY]);
+        }
     }
 }
