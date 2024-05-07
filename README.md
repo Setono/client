@@ -40,6 +40,9 @@ $id = $client->id;
 // set metadata
 $client->metadata->set('foo', 'bar');
 
+// set metadata that expires in 1 hour
+$client->metadata->set('foo', 'bar', 3600);
+
 // get metadata
 $client->metadata->get('foo');
 
