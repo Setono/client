@@ -43,7 +43,14 @@ final class MetadataTest extends TestCase
         self::assertTrue(isset($metadata['foo']));
         self::assertTrue(isset($metadata['foo_expires']));
         self::assertTrue(isset($metadata['bar']));
-        self::assertSame(['foo' => 'bar', 'foo_expires' => 'bar', 'bar' => 'baz'], $metadata->toArray());
+        self::assertSame([
+            'foo' => 'bar',
+            'foo_expires' => 'bar',
+            '__expires' => [
+                'foo_expires' => $now + 10,
+            ],
+            'bar' => 'baz',
+        ], $metadata->toArray());
 
         StaticClock::setTime($now + 11);
 

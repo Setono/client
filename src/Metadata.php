@@ -10,7 +10,7 @@ namespace Setono\Client;
  */
 class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSerializable
 {
-    private const EXPIRES_KEY = '__expires';
+    final public const EXPIRES_KEY = '__expires';
 
     public function __construct(
         /**
@@ -113,7 +113,10 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
 
     public function getIterator(): \ArrayIterator
     {
-        return new \ArrayIterator($this->toArray());
+        $metadata = $this->toArray();
+        unset($metadata[self::EXPIRES_KEY]);
+
+        return new \ArrayIterator($metadata);
     }
 
     public function jsonSerialize(): array
@@ -122,16 +125,18 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
     }
 
     /**
-     * @return array<string, mixed>
+     * Please notice that this method returns the data to be able to reconstruct the object.
+     * This means it includes the expired keys.
+     *
+     * When you iterate the Metadata object, the expired keys are not included.
+     *
+     * @return array{__expires?: array<string, int>, ...<string, mixed>}
      */
     public function toArray(): array
     {
         $this->pruneExpired();
 
-        $metadata = $this->metadata;
-        unset($metadata[self::EXPIRES_KEY]);
-
-        return $metadata;
+        return $this->metadata;
     }
 
     private function pruneExpired(): void
