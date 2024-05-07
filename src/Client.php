@@ -18,7 +18,7 @@ class Client implements \Stringable, \JsonSerializable
 
     /**
      * @param string|null $id if null a new id will be generated
-     * @param array<string, mixed>|Metadata $metadata
+     * @param Metadata|array{__expires?: array<string, int>, ...<string, mixed>} $metadata
      */
     public function __construct(string $id = null, array|Metadata $metadata = [])
     {
