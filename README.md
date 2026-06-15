@@ -6,14 +6,19 @@
 [![Code Coverage][ico-code-coverage]][link-code-coverage]
 [![Mutation testing][ico-infection]][link-infection]
 
+This library provides a small, framework-agnostic value object for identifying a browser client: a stable id
+together with arbitrary, optionally expiring metadata. A companion `Cookie` class serializes that id — along with a
+format version and "first/last seen" timestamps — to and from a cookie value, so the same visitor can be recognized
+across requests.
+
 ## Installation
 
 ```bash
 composer require setono/client
 ```
 
-If you don't use your own client id generation strategy, you should also install either
-the [symfony/uid](https://packagist.org/packages/symfony/uid) or the [ramsey/uuid](https://packagist.org/packages/ramsey/uuid) package:
+When you don't supply an id yourself, the library generates a UUIDv7. To use that, install one of the supported UUID
+libraries (if both are installed, `symfony/uid` is preferred):
 
 ```bash
 # If you want to use symfony/uid
@@ -25,33 +30,100 @@ composer require ramsey/uuid
 
 ## Usage
 
+### The client
+
 ```php
 use Setono\Client\Client;
 
-// initialization with a generated id and an empty metadata object
+// A new client with a generated UUIDv7 id and empty metadata
 $client = new Client();
 
-// initialization with your own id and existing metadata
-$client = new Client('my-client-id', ['foo' => 'bar']);
+// ...or built from an existing id and metadata
+$client = new Client('a3f1c0de-...', ['plan' => 'pro']);
 
-// get the client id
-$id = $client->id;
-
-// set metadata
-$client->metadata->set('foo', 'bar');
-
-// set metadata that expires in 1 hour
-$client->metadata->set('foo', 'bar', 3600);
-
-// get metadata
-$client->metadata->get('foo');
-
-// remove metadata
-$client->metadata->remove('foo');
+$client->id;       // the identifier (string, readonly)
+(string) $client;  // the same id — Client is Stringable
+$client->metadata; // the Metadata object (readonly)
 ```
 
-There's also a `Cookie` class which can be used to store the client id in a cookie.
+### Metadata
 
+`Metadata` is a `string => mixed` bag. It implements `ArrayAccess`, `Countable` and `IteratorAggregate`, so you can
+use it like an array:
+
+```php
+$metadata = $client->metadata;
+
+$metadata->set('plan', 'pro');
+$metadata->has('plan');     // true
+$metadata->get('plan');     // 'pro' — throws InvalidArgumentException if the key is missing or expired
+$metadata->remove('plan');
+
+// array access, counting and iteration all work
+$metadata['plan'] = 'pro';
+isset($metadata['plan']);   // true
+unset($metadata['plan']);
+count($metadata);
+
+foreach ($metadata as $key => $value) {
+    // ...
+}
+```
+
+#### Expiring entries
+
+Pass a TTL (in seconds) as the third argument to `set()`. Expired entries are pruned lazily: they are no longer
+returned by `get()`/`has()` and are excluded from iteration and `count()`.
+
+```php
+// "promo" expires one hour from now
+$metadata->set('promo', 'BLACKFRIDAY', ttl: 3600);
+```
+
+### Persisting and restoring
+
+`Metadata::toArray()` returns everything needed to rebuild the object — including the expiry bookkeeping — so you can
+store it (in a database, cache, session, ...) and reconstruct the client later with the timestamps intact:
+
+```php
+$id   = $client->id;
+$data = $client->metadata->toArray();
+
+// ...later
+$client = new Client($id, $data);
+```
+
+`Client` and `Metadata` are also `JsonSerializable`:
+
+```php
+json_encode($client); // {"id":"a3f1c0de-...","metadata":{"plan":"pro"}}
+```
+
+### Storing the id in a cookie
+
+The `Cookie` class converts a client id to and from a cookie value. The value also carries a format version and the
+timestamps for when the client was first and last seen. The library only produces and parses the string — reading the
+request cookie and writing it to the response is left to your HTTP layer.
+
+```php
+use Setono\Client\Cookie;
+
+// firstSeenAt and lastSeenAt default to the current time
+$cookie = new Cookie($client->id);
+
+(string) $cookie; // "2.1700000000.1700000000.a3f1c0de-..." (version.firstSeenAt.lastSeenAt.clientId)
+
+// Parse an incoming value. A bare id (no dots) is treated as a legacy v1 cookie and upgraded.
+$cookie = Cookie::fromString($_COOKIE['_client'] ?? '');
+
+$cookie->clientId;
+$cookie->version;
+$cookie->firstSeenAt;
+$cookie->lastSeenAt;
+
+// Cookie is immutable; "touch" the last-seen timestamp by deriving a new instance
+$cookie = $cookie->withLastSeenAt(time());
+```
 
 [ico-version]: https://poser.pugx.org/setono/client/v/stable
 [ico-license]: https://poser.pugx.org/setono/client/license
