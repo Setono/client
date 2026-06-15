@@ -106,7 +106,7 @@ final class CookieTest extends TestCase
     /**
      * @return \Generator<array-key, array{string}>
      */
-    public function provideInvalidCookies(): \Generator
+    public static function provideInvalidCookies(): \Generator
     {
         yield [''];
         yield ['2.123.client_id'];
