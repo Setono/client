@@ -19,7 +19,7 @@ final class ClientTest extends TestCase
         $uuid = Uuid::fromString($client->id);
 
         self::assertInstanceOf(UuidV7::class, $uuid);
-        self::assertInstanceOf(Metadata::class, $client->metadata);
+        self::assertCount(0, $client->metadata);
     }
 
     /**
@@ -29,7 +29,7 @@ final class ClientTest extends TestCase
     {
         $client = new Client(metadata: ['foo' => 'bar']);
 
-        self::assertInstanceOf(Metadata::class, $client->metadata);
+        self::assertSame('bar', $client->metadata->get('foo'));
     }
 
     /**

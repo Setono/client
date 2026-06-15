@@ -58,6 +58,8 @@ jobs:
                 php-version:
                     - "8.1"
                     - "8.2"
+                    - "8.3"
+                    - "8.4"
 
                 dependencies:
                     - "lowest"
@@ -73,18 +75,14 @@ jobs:
                     coverage: "none"
                     extensions: "${{ env.PHP_EXTENSIONS }}"
                     php-version: "${{ matrix.php-version }}"
-                    tools: "composer-require-checker, composer-unused"
 
             -   name: "Install composer dependencies"
                 uses: "ramsey/composer-install@v3"
                 with:
                     dependency-versions: "${{ matrix.dependencies }}"
 
-            -   name: "Run maglnet/composer-require-checker"
-                run: "composer-require-checker check --config-file=$(pwd)/composer-require-checker.json"
-
-            -   name: "Run composer-unused/composer-unused"
-                run: "composer-unused"
+            -   name: "Run dependency analysis"
+                run: "vendor/bin/composer-dependency-analyser"
 
     static-code-analysis:
         name: "Static Code Analysis"
@@ -96,6 +94,8 @@ jobs:
                 php-version:
                     - "8.1"
                     - "8.2"
+                    - "8.3"
+                    - "8.4"
 
                 dependencies:
                     - "lowest"
@@ -130,6 +130,8 @@ jobs:
                 php-version:
                     - "8.1"
                     - "8.2"
+                    - "8.3"
+                    - "8.4"
 
                 dependencies:
                     - "lowest"
@@ -170,7 +172,7 @@ jobs:
         strategy:
             matrix:
                 php-version:
-                    - "8.2"
+                    - "8.3"
 
                 dependencies:
                     - "highest"

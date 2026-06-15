@@ -26,8 +26,8 @@ class Cookie implements \Stringable
          * We consider the first versions of https://github.com/Setono/client-id (and its related packages) to be version 1
          */
         public readonly int $version = 2,
-        int $firstSeenAt = null,
-        int $lastSeenAt = null,
+        ?int $firstSeenAt = null,
+        ?int $lastSeenAt = null,
     ) {
         $this->firstSeenAt = $firstSeenAt ?? time();
         $this->lastSeenAt = $lastSeenAt ?? time();

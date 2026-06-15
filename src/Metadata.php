@@ -12,24 +12,43 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
 {
     final public const EXPIRES_KEY = '__expires';
 
-    public function __construct(
-        /**
-         * @var array{__expires?: array<string, int>, ...<string, mixed>} $metadata
-         */
-        private array $metadata = [],
-    ) {
-    }
+    /** @var array<string, mixed> */
+    private array $data = [];
 
     /**
-     * @psalm-assert-if-true mixed $this->metadata[$key]
+     * Maps a metadata key to the unix timestamp when it expires
+     *
+     * @var array<string, int>
      */
+    private array $expires = [];
+
+    /**
+     * @param array<string, mixed> $metadata The metadata. It may include the reserved "__expires" key, as produced
+     *                                        by self::toArray(), to restore the expiry timestamps of the other keys
+     */
+    public function __construct(array $metadata = [])
+    {
+        $expires = $metadata[self::EXPIRES_KEY] ?? [];
+        unset($metadata[self::EXPIRES_KEY]);
+
+        $this->data = $metadata;
+
+        if (is_array($expires)) {
+            foreach ($expires as $key => $expiresAt) {
+                if (is_string($key) && is_int($expiresAt)) {
+                    $this->expires[$key] = $expiresAt;
+                }
+            }
+        }
+    }
+
     public function has(string $key): bool
     {
-        if (!array_key_exists($key, $this->metadata)) {
+        if (!array_key_exists($key, $this->data)) {
             return false;
         }
 
-        if (isset($this->metadata[self::EXPIRES_KEY][$key]) && $this->metadata[self::EXPIRES_KEY][$key] < time()) {
+        if (isset($this->expires[$key]) && $this->expires[$key] < time()) {
             $this->remove($key);
 
             return false;
@@ -44,7 +63,7 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
             throw new \InvalidArgumentException(sprintf('The key %s does not exist', $key));
         }
 
-        return $this->metadata[$key];
+        return $this->data[$key];
     }
 
     /**
@@ -52,30 +71,26 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
      *
      * @throws \InvalidArgumentException if the key is reserved
      */
-    public function set(string $key, mixed $value, int $ttl = null): void
+    public function set(string $key, mixed $value, ?int $ttl = null): void
     {
         if (self::EXPIRES_KEY === $key) {
             throw new \InvalidArgumentException(sprintf('The key "%s" is reserved', self::EXPIRES_KEY));
         }
 
-        $this->metadata[$key] = $value;
+        $this->data[$key] = $value;
 
         if (null !== $ttl) {
             if (0 >= $ttl) {
                 throw new \InvalidArgumentException('The ttl must be greater than 0');
             }
 
-            $this->metadata[self::EXPIRES_KEY][$key] = time() + $ttl;
+            $this->expires[$key] = time() + $ttl;
         }
     }
 
     public function remove(string $key): void
     {
-        unset($this->metadata[$key]);
-
-        if (isset($this->metadata[self::EXPIRES_KEY][$key])) {
-            unset($this->metadata[self::EXPIRES_KEY][$key]);
-        }
+        unset($this->data[$key], $this->expires[$key]);
     }
 
     public function offsetExists($offset): bool
@@ -106,22 +121,25 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
     {
         $this->pruneExpired();
 
-        $c = count($this->metadata);
-
-        return isset($this->metadata[self::EXPIRES_KEY]) ? $c - 1 : $c;
+        return count($this->data);
     }
 
+    /**
+     * @return \ArrayIterator<string, mixed>
+     */
     public function getIterator(): \ArrayIterator
     {
-        $metadata = $this->toArray();
-        unset($metadata[self::EXPIRES_KEY]);
+        $this->pruneExpired();
 
-        return new \ArrayIterator($metadata);
+        return new \ArrayIterator($this->data);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function jsonSerialize(): array
     {
-        return $this->metadata;
+        return $this->merged();
     }
 
     /**
@@ -130,27 +148,40 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
      *
      * When you iterate the Metadata object, the expired keys are not included.
      *
-     * @return array{__expires?: array<string, int>, ...<string, mixed>}
+     * @return array<string, mixed>
      */
     public function toArray(): array
     {
         $this->pruneExpired();
 
-        return $this->metadata;
+        return $this->merged();
+    }
+
+    /**
+     * Returns the data with the reserved "__expires" key appended, i.e. the representation
+     * that can be passed back to the constructor to reconstruct the object
+     *
+     * @return array<string, mixed>
+     */
+    private function merged(): array
+    {
+        $data = $this->data;
+
+        if ([] !== $this->expires) {
+            $data[self::EXPIRES_KEY] = $this->expires;
+        }
+
+        return $data;
     }
 
     private function pruneExpired(): void
     {
         $now = time();
 
-        foreach ($this->metadata[self::EXPIRES_KEY] ?? [] as $key => $expiresAt) {
+        foreach ($this->expires as $key => $expiresAt) {
             if ($expiresAt < $now) {
                 $this->remove($key);
             }
-        }
-
-        if (isset($this->metadata[self::EXPIRES_KEY]) && [] === $this->metadata[self::EXPIRES_KEY]) {
-            unset($this->metadata[self::EXPIRES_KEY]);
         }
     }
 }

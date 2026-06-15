@@ -13,11 +13,20 @@
         "php": ">=8.1"
     },
     "require-dev": {
-        "infection/infection": "^0.27.11",
-        "phpunit/phpunit": "^9.6.22",
-        "psalm/plugin-phpunit": "^0.18.4",
+        "ergebnis/composer-normalize": "^2.50",
+        "infection/infection": "^0.29",
+        "jangregor/phpstan-prophecy": "^2.3",
+        "phpspec/prophecy-phpunit": "^2.5",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpstan/phpstan-webmozart-assert": "^2.0",
+        "phpunit/phpunit": "^10.5",
         "ramsey/uuid": "^4.7.6",
-        "setono/code-quality-pack": "^2.9",
+        "rector/rector": "^2.4",
+        "shipmonk/composer-dependency-analyser": "^1.8",
+        "sylius-labs/coding-standard": "^4.5",
         "symfony/uid": "^6.4 || ^7.0"
     },
     "prefer-stable": true,
@@ -29,14 +38,18 @@
     "autoload-dev": {
         "psr-4": {
             "Setono\\Client\\": "tests/"
-        }
+        },
+        "files": [
+            "tests/StaticClock.php"
+        ]
     },
     "config": {
         "allow-plugins": {
             "dealerdirect/phpcodesniffer-composer-installer": false,
             "ergebnis/composer-normalize": true,
             "infection/extension-installer": true,
-            "php-http/discovery": false
+            "php-http/discovery": false,
+            "phpstan/extension-installer": true
         },
         "sort-packages": true
     },
@@ -46,7 +59,7 @@
         }
     },
     "scripts": {
-        "analyse": "psalm",
+        "analyse": "phpstan analyse",
         "check-style": "ecs check",
         "fix-style": "ecs check --fix",
         "phpunit": "phpunit",

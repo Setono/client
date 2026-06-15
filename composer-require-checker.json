@@ -1,6 +1,0 @@
-{
-    "symbol-whitelist": [
-        "Ramsey\\Uuid\\Uuid",
-        "Symfony\\Component\\Uid\\Uuid"
-    ]
-}

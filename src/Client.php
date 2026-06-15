@@ -18,9 +18,9 @@ class Client implements \Stringable, \JsonSerializable
 
     /**
      * @param string|null $id if null a new id will be generated
-     * @param Metadata|array{__expires?: array<string, int>, ...<string, mixed>} $metadata
+     * @param Metadata|array<string, mixed> $metadata
      */
-    public function __construct(string $id = null, array|Metadata $metadata = [])
+    public function __construct(?string $id = null, array|Metadata $metadata = [])
     {
         if (null === $id) {
             $id = (string) match (true) {
@@ -44,6 +44,9 @@ class Client implements \Stringable, \JsonSerializable
         return $this->toString();
     }
 
+    /**
+     * @return array{id: string, metadata: Metadata}
+     */
     public function jsonSerialize(): array
     {
         return [
