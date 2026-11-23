@@ -69,7 +69,8 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
     }
 
     /**
-     * @param int|null $ttl the time to live for the key (in seconds)
+     * @param int|null $ttl the time to live for the key (in seconds). Null means the key never expires: any expiry
+     *                      it had is removed
      *
      * @throws \InvalidArgumentException if the key is reserved or the ttl is 0 or less
      */
@@ -97,6 +98,10 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
             }
 
             $this->expires[$key] = $expiresAt;
+        } elseif (array_key_exists($key, $this->expires)) {
+            $this->changed = true;
+
+            unset($this->expires[$key]);
         }
     }
 
