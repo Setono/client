@@ -25,27 +25,39 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
     private bool $changed = false;
 
     /**
+     * Returns the entries of lazy metadata on first use. Null once loaded, and for metadata that isn't lazy
+     *
+     * @var (\Closure(): array<string, mixed>)|null
+     */
+    private ?\Closure $loader = null;
+
+    /**
      * @param array<string, mixed> $metadata The metadata. It may include the reserved "__expires" key, as produced
      *                                        by self::toArray(), to restore the expiry timestamps of the other keys
      */
     public function __construct(array $metadata = [])
     {
-        $expires = $metadata[self::EXPIRES_KEY] ?? [];
-        unset($metadata[self::EXPIRES_KEY]);
+        $this->populate($metadata);
+    }
 
-        $this->data = $metadata;
+    /**
+     * Creates metadata that calls the loader the first time a call reads or alters it
+     *
+     * @param callable(): array<string, mixed> $loader Returns what the constructor takes, including the reserved
+     *                                                 "__expires" key
+     */
+    public static function lazy(callable $loader): self
+    {
+        $metadata = new self();
+        $metadata->loader = $loader(...);
 
-        if (is_array($expires)) {
-            foreach ($expires as $key => $expiresAt) {
-                if (is_string($key) && is_int($expiresAt)) {
-                    $this->expires[$key] = $expiresAt;
-                }
-            }
-        }
+        return $metadata;
     }
 
     public function has(string $key): bool
     {
+        $this->load();
+
         if (!array_key_exists($key, $this->data)) {
             return false;
         }
@@ -84,6 +96,8 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
             throw new \InvalidArgumentException('The ttl must be greater than 0');
         }
 
+        $this->load();
+
         if (!array_key_exists($key, $this->data) || $this->data[$key] !== $value) {
             $this->changed = true;
         }
@@ -111,6 +125,8 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
      */
     public function remove(string $key): void
     {
+        $this->load();
+
         if (array_key_exists($key, $this->data) || array_key_exists($key, $this->expires)) {
             $this->changed = true;
         }
@@ -119,8 +135,9 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
     }
 
     /**
-     * Returns true once a call has altered the values or expiry times. Constructing the object is not a change,
-     * setting a value back does not undo one, and nothing resets it
+     * Returns true once a call has altered the values or expiry times. Constructing the object or loading lazy metadata
+     * is not a change, setting a value back does not undo one, and nothing resets it. It never calls the loader of lazy
+     * metadata: lazy metadata that was never loaded hasn't changed
      */
     public function hasChanged(): bool
     {
@@ -173,6 +190,8 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
      */
     public function jsonSerialize(): array
     {
+        $this->load();
+
         return $this->merged();
     }
 
@@ -189,6 +208,25 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
         $this->pruneExpired();
 
         return $this->merged();
+    }
+
+    /**
+     * Loads lazy metadata, then returns its properties without the loader, because closures can't be serialized.
+     * The array has the property names PHP serializes by default, so the format stays the one setono/client 1.2
+     * wrote, and unserializing gives metadata that isn't lazy. It's __serialize() rather than __sleep(), because
+     * Symfony's LazyGhostTrait, which released versions of setono/client-bundle use, raises a notice for
+     * names from __sleep() that it can't find
+     *
+     * @return array<mixed>
+     */
+    public function __serialize(): array
+    {
+        $this->load();
+
+        $properties = (array) $this;
+        unset($properties["\0" . self::class . "\0loader"]);
+
+        return $properties;
     }
 
     /**
@@ -210,11 +248,48 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
 
     private function pruneExpired(): void
     {
+        $this->load();
+
         $now = time();
 
         foreach ($this->expires as $key => $expiresAt) {
             if ($expiresAt < $now) {
                 $this->remove($key);
+            }
+        }
+    }
+
+    /**
+     * Calls the loader of lazy metadata that hasn't loaded yet. If the loader throws, nothing changes and the next call
+     * calls it again
+     */
+    private function load(): void
+    {
+        if (null === $this->loader) {
+            return;
+        }
+
+        $this->populate(($this->loader)());
+        $this->loader = null;
+    }
+
+    /**
+     * Reads constructor input into metadata that holds no entries yet: a new object, or lazy metadata that is loading
+     *
+     * @param array<string, mixed> $metadata
+     */
+    private function populate(array $metadata): void
+    {
+        $expires = $metadata[self::EXPIRES_KEY] ?? [];
+        unset($metadata[self::EXPIRES_KEY]);
+
+        $this->data = $metadata;
+
+        if (is_array($expires)) {
+            foreach ($expires as $key => $expiresAt) {
+                if (is_string($key) && is_int($expiresAt)) {
+                    $this->expires[$key] = $expiresAt;
+                }
             }
         }
     }

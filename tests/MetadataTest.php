@@ -627,6 +627,240 @@ final class MetadataTest extends TestCase
     }
 
     /**
+     * @test
+     */
+    public function it_does_not_load_lazy_metadata_when_created_or_asked_whether_it_has_changed(): void
+    {
+        $loader = new CountingLoader(['foo' => 'bar']);
+
+        $metadata = Metadata::lazy($loader);
+
+        self::assertFalse($metadata->hasChanged());
+        self::assertSame(0, $loader->calls);
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider provideCallsThatReadOrAlter
+     *
+     * @param \Closure(Metadata): mixed $call
+     */
+    public function it_loads_lazy_metadata_once_on_the_first_call_that_reads_or_alters_it(\Closure $call): void
+    {
+        $loader = new CountingLoader(['foo' => 'bar']);
+        $metadata = Metadata::lazy($loader);
+
+        $call($metadata);
+        self::assertSame(1, $loader->calls);
+
+        $call($metadata);
+        self::assertSame(1, $loader->calls);
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider provideCallsThatReadOrAlter
+     *
+     * @param \Closure(Metadata): mixed $call
+     */
+    public function it_behaves_like_metadata_constructed_with_the_loaded_data(\Closure $call): void
+    {
+        StaticClock::setTime(1_000);
+
+        $data = [
+            'foo' => 'bar',
+            'expired' => 'value',
+            Metadata::EXPIRES_KEY => ['expired' => 999, 'malformed' => 'not-an-integer'],
+        ];
+        $eager = new Metadata($data);
+        $lazy = Metadata::lazy(static fn (): array => $data);
+
+        self::assertSame($call($eager), $call($lazy));
+        // jsonSerialize() does not prune, so this compares what the call left behind
+        self::assertSame($eager->jsonSerialize(), $lazy->jsonSerialize());
+        self::assertSame($eager->hasChanged(), $lazy->hasChanged());
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider provideCallsThatDropAnExpiredKey
+     *
+     * @param \Closure(Metadata): mixed $call
+     */
+    public function it_changes_when_a_call_drops_an_expired_key_that_the_loader_returned(\Closure $call): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = Metadata::lazy(static fn (): array => [
+            'live' => 'value',
+            'expired' => 'value',
+            Metadata::EXPIRES_KEY => ['expired' => 999],
+        ]);
+
+        $call($metadata);
+
+        self::assertTrue($metadata->hasChanged());
+        self::assertSame(['live' => 'value'], $metadata->jsonSerialize());
+    }
+
+    /**
+     * @test
+     */
+    public function it_stays_unloaded_and_calls_the_loader_again_when_the_loader_throws(): void
+    {
+        $loader = new CountingLoader(['foo' => 'bar']);
+        $metadata = Metadata::lazy(static function () use ($loader): array {
+            $data = $loader();
+
+            if (1 === $loader->calls) {
+                throw new \RuntimeException('The database is down');
+            }
+
+            return $data;
+        });
+
+        try {
+            $metadata->set('baz', 'qux');
+
+            self::fail('Expected the exception of the loader');
+        } catch (\RuntimeException $e) {
+            self::assertSame('The database is down', $e->getMessage());
+        }
+
+        self::assertFalse($metadata->hasChanged());
+        self::assertSame(1, $loader->calls);
+
+        self::assertSame(['foo' => 'bar'], $metadata->toArray());
+        self::assertSame(2, $loader->calls);
+    }
+
+    /**
+     * @test
+     */
+    public function it_loads_lazy_metadata_to_serialize_it(): void
+    {
+        StaticClock::setTime(1_000);
+
+        $data = ['foo' => 'bar', 'expiring' => 'value', Metadata::EXPIRES_KEY => ['expiring' => 1_060]];
+        $loader = new CountingLoader($data);
+
+        $metadata = unserialize(serialize(Metadata::lazy($loader)));
+
+        self::assertInstanceOf(Metadata::class, $metadata);
+        self::assertSame($data, $metadata->toArray());
+        self::assertFalse($metadata->hasChanged());
+        self::assertSame(1, $loader->calls);
+    }
+
+    /**
+     * @test
+     */
+    public function it_keeps_the_change_flag_when_serializing_lazy_metadata(): void
+    {
+        $loader = new CountingLoader(['foo' => 'bar']);
+        $metadata = Metadata::lazy($loader);
+        $metadata->set('baz', 'qux');
+
+        $metadata = unserialize(serialize($metadata));
+
+        self::assertInstanceOf(Metadata::class, $metadata);
+        self::assertSame(['foo' => 'bar', 'baz' => 'qux'], $metadata->toArray());
+        self::assertTrue($metadata->hasChanged());
+        self::assertSame(1, $loader->calls);
+    }
+
+    /**
+     * @test
+     */
+    public function it_unserializes_metadata_serialized_with_version_1_2_and_serializes_it_the_same_way(): void
+    {
+        StaticClock::setTime(1_000);
+
+        // What setono/client 1.2.0's serialize() returned for new Metadata(['foo' => 'bar', 'expiring' => 'value',
+        // '__expires' => ['expiring' => 1_060]]) after set('baz', 'qux'), as var_export() prints it
+        $serialized = 'O:22:"Setono\\Client\\Metadata":3:{s:28:"' . "\0" . 'Setono\\Client\\Metadata' . "\0" . 'data";a:3:{s:3:"foo";s:3:"bar";s:8:"expiring";s:5:"value";s:3:"baz";s:3:"qux";}s:31:"' . "\0" . 'Setono\\Client\\Metadata' . "\0" . 'expires";a:1:{s:8:"expiring";i:1060;}s:31:"' . "\0" . 'Setono\\Client\\Metadata' . "\0" . 'changed";b:1;}';
+
+        $metadata = unserialize($serialized);
+
+        self::assertInstanceOf(Metadata::class, $metadata);
+        self::assertSame($serialized, serialize($metadata));
+        self::assertSame([
+            'foo' => 'bar',
+            'expiring' => 'value',
+            'baz' => 'qux',
+            Metadata::EXPIRES_KEY => ['expiring' => 1_060],
+        ], $metadata->toArray());
+        self::assertTrue($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     */
+    public function it_keeps_a_clone_of_unloaded_lazy_metadata_lazy(): void
+    {
+        $loader = new CountingLoader(['foo' => 'bar']);
+        $metadata = Metadata::lazy($loader);
+
+        $clone = clone $metadata;
+        self::assertSame(0, $loader->calls);
+
+        $clone->set('baz', 'qux');
+        self::assertSame(1, $loader->calls);
+
+        self::assertSame(['foo' => 'bar'], $metadata->toArray());
+        self::assertSame(2, $loader->calls);
+        self::assertSame(['foo' => 'bar', 'baz' => 'qux'], $clone->toArray());
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider provideRejectedCalls
+     *
+     * @param \Closure(Metadata): void $call
+     */
+    public function it_does_not_load_lazy_metadata_when_a_call_is_rejected(\Closure $call): void
+    {
+        $loader = new CountingLoader(['foo' => 'bar']);
+        $metadata = Metadata::lazy($loader);
+
+        self::assertThrowsInvalidArgument(static function () use ($call, $metadata): void {
+            $call($metadata);
+        });
+        self::assertSame(0, $loader->calls);
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(Metadata): mixed}>
+     */
+    public static function provideCallsThatReadOrAlter(): iterable
+    {
+        yield 'has()' => [static fn (Metadata $metadata): bool => $metadata->has('foo')];
+        yield 'get()' => [static fn (Metadata $metadata): mixed => $metadata->get('foo')];
+        yield 'set()' => [static function (Metadata $metadata): void {
+            $metadata->set('foo', 'baz');
+        }];
+        yield 'remove()' => [static function (Metadata $metadata): void {
+            $metadata->remove('foo');
+        }];
+        yield 'offsetExists()' => [static fn (Metadata $metadata): bool => isset($metadata['foo'])];
+        yield 'offsetGet()' => [static fn (Metadata $metadata): mixed => $metadata['foo']];
+        yield 'offsetSet()' => [static function (Metadata $metadata): void {
+            $metadata['foo'] = 'baz';
+        }];
+        yield 'offsetUnset()' => [static function (Metadata $metadata): void {
+            unset($metadata['foo']);
+        }];
+        yield 'count()' => [count(...)];
+        yield 'getIterator()' => [iterator_to_array(...)];
+        yield 'toArray()' => [static fn (Metadata $metadata): array => $metadata->toArray()];
+        yield 'jsonSerialize()' => [static fn (Metadata $metadata): array => $metadata->jsonSerialize()];
+    }
+
+    /**
      * @return iterable<string, array{\Closure(Metadata): void}>
      */
     public static function provideRejectedCalls(): iterable
