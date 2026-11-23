@@ -42,3 +42,19 @@ The library calls the **unqualified** `time()`, which in namespace `Setono\Clien
 - `declare(strict_types=1)` in every file; PSR-4 maps `Setono\Client\` to both `src/` (autoload) and `tests/` (autoload-dev).
 - Code style is Sylius Labs' standard via ECS.
 - CI (`.github/workflows/build.yaml`) also runs `composer validate --strict` and `composer normalize --dry-run`; PRs additionally run a Roave backward-compatibility check, so avoid BC breaks to the public API. Note the `Metadata` serialization order is **not** part of that contract (the reconstruction round-trip is key-based, not order-based).
+
+## Agent skills
+
+- When grilling (`/mattpocock-skills:grilling`, `/mattpocock-skills:grill-me`, `/mattpocock-skills:grill-with-docs`, and grilling inside other skills), ask via the `AskUserQuestion` tool instead of as plain chat text. The skills ask in chat on purpose and leave this to the project's CLAUDE.md ([mattpocock/skills: native question tool](https://github.com/mattpocock/skills/blob/main/.out-of-scope/native-question-tool.md)).
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues on `Setono/client`, using the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Uses the default label names: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
