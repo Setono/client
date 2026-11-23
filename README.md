@@ -80,6 +80,29 @@ returned by `get()`/`has()` and are excluded from iteration and `count()`.
 $metadata->set('promo', 'BLACKFRIDAY', ttl: 3600);
 ```
 
+#### Tracking changes
+
+`hasChanged()` tells you whether anything has altered the values or expiry times since the object was created, so you
+can skip storing metadata that wasn't changed:
+
+```php
+$metadata = new Metadata($storedData);
+$metadata->hasChanged(); // false, whatever data it was given
+
+$metadata->set('plan', 'pro');
+$metadata->hasChanged(); // true, unless 'plan' already held 'pro'
+```
+
+A call counts as a change when the values or expiry times after it differ from those before it:
+
+- `set()` of a new key, of a different value (compared with `!==`), or with a TTL that moves the key's expiry. Setting a
+  key to the value and expiry it already has is not a change.
+- `remove()` or `unset()` of a key that exists.
+- Dropping an expired key, whichever call drops it: `has()`, `get()`, array access, `count()`, iteration or `toArray()`.
+
+Reading live keys and `jsonSerialize()` are not changes, and neither is a call that throws. Once `hasChanged()` returns
+`true` it stays `true`: setting a value back doesn't undo it, and nothing resets it.
+
 ### Persisting and restoring
 
 `Metadata::toArray()` returns everything needed to rebuild the object — including the expiry bookkeeping — so you can

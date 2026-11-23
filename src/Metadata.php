@@ -22,6 +22,8 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
      */
     private array $expires = [];
 
+    private bool $changed = false;
+
     /**
      * @param array<string, mixed> $metadata The metadata. It may include the reserved "__expires" key, as produced
      *                                        by self::toArray(), to restore the expiry timestamps of the other keys
@@ -69,7 +71,7 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
     /**
      * @param int|null $ttl the time to live for the key (in seconds)
      *
-     * @throws \InvalidArgumentException if the key is reserved
+     * @throws \InvalidArgumentException if the key is reserved or the ttl is 0 or less
      */
     public function set(string $key, mixed $value, ?int $ttl = null): void
     {
@@ -77,20 +79,47 @@ class Metadata implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSer
             throw new \InvalidArgumentException(sprintf('The key "%s" is reserved', self::EXPIRES_KEY));
         }
 
+        if (null !== $ttl && 0 >= $ttl) {
+            throw new \InvalidArgumentException('The ttl must be greater than 0');
+        }
+
+        if (!array_key_exists($key, $this->data) || $this->data[$key] !== $value) {
+            $this->changed = true;
+        }
+
         $this->data[$key] = $value;
 
         if (null !== $ttl) {
-            if (0 >= $ttl) {
-                throw new \InvalidArgumentException('The ttl must be greater than 0');
+            $expiresAt = time() + $ttl;
+
+            if (($this->expires[$key] ?? null) !== $expiresAt) {
+                $this->changed = true;
             }
 
-            $this->expires[$key] = time() + $ttl;
+            $this->expires[$key] = $expiresAt;
         }
     }
 
+    /**
+     * Expired keys are dropped through this method too. Keep it that way: released versions of setono/client-bundle
+     * override it to notice dropped keys
+     */
     public function remove(string $key): void
     {
+        if (array_key_exists($key, $this->data) || array_key_exists($key, $this->expires)) {
+            $this->changed = true;
+        }
+
         unset($this->data[$key], $this->expires[$key]);
+    }
+
+    /**
+     * Returns true once a call has altered the values or expiry times. Constructing the object is not a change,
+     * setting a value back does not undo one, and nothing resets it
+     */
+    public function hasChanged(): bool
+    {
+        return $this->changed;
     }
 
     public function offsetExists($offset): bool

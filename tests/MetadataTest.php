@@ -312,4 +312,331 @@ final class MetadataTest extends TestCase
 
         self::assertSame(['foo' => 'bar'], $metadata->toArray());
     }
+
+    /**
+     * @test
+     */
+    public function it_has_not_changed_when_constructed(): void
+    {
+        StaticClock::setTime(1_000);
+
+        self::assertFalse((new Metadata())->hasChanged());
+        self::assertFalse((new Metadata([
+            'foo' => 'bar',
+            'expired' => 'value',
+            Metadata::EXPIRES_KEY => ['expired' => 900, 'malformed' => 'not-an-integer'],
+        ]))->hasChanged());
+    }
+
+    /**
+     * @test
+     */
+    public function it_changes_when_setting_a_new_key(): void
+    {
+        $metadata = new Metadata(['foo' => 'bar']);
+        $metadata->set('baz', 'qux');
+
+        self::assertTrue($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     */
+    public function it_changes_when_setting_a_different_value(): void
+    {
+        $metadata = new Metadata(['foo' => '1']);
+        $metadata->set('foo', 1);
+
+        self::assertTrue($metadata->hasChanged());
+        self::assertSame(1, $metadata->get('foo'));
+    }
+
+    /**
+     * @test
+     */
+    public function it_changes_when_a_ttl_adds_an_expiry(): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata(['foo' => 'bar']);
+        $metadata->set('foo', 'bar', 60);
+
+        self::assertTrue($metadata->hasChanged());
+        self::assertSame(['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => 1_060]], $metadata->toArray());
+    }
+
+    /**
+     * @test
+     */
+    public function it_changes_when_a_ttl_moves_the_expiry(): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata(['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => 1_060]]);
+        $metadata->set('foo', 'bar', 61);
+
+        self::assertTrue($metadata->hasChanged());
+        self::assertSame(['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => 1_061]], $metadata->toArray());
+    }
+
+    /**
+     * @test
+     */
+    public function it_does_not_change_when_setting_the_same_value_without_a_ttl(): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata([
+            'foo' => ['a' => 1],
+            'expiring' => 'value',
+            Metadata::EXPIRES_KEY => ['expiring' => 1_060],
+        ]);
+        $metadata->set('foo', ['a' => 1]);
+        $metadata->set('expiring', 'value');
+
+        self::assertFalse($metadata->hasChanged());
+        self::assertSame([
+            'foo' => ['a' => 1],
+            'expiring' => 'value',
+            Metadata::EXPIRES_KEY => ['expiring' => 1_060],
+        ], $metadata->toArray());
+    }
+
+    /**
+     * @test
+     */
+    public function it_does_not_change_when_setting_the_same_value_with_a_ttl_giving_the_same_expiry(): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata(['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => 1_060]]);
+        $metadata->set('foo', 'bar', 60);
+
+        self::assertFalse($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     */
+    public function it_changes_when_removing_an_existing_key(): void
+    {
+        $metadata = new Metadata(['foo' => 'bar']);
+        $metadata->remove('foo');
+
+        self::assertTrue($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     */
+    public function it_changes_when_unsetting_an_existing_key(): void
+    {
+        $metadata = new Metadata(['foo' => 'bar']);
+        unset($metadata['foo']);
+
+        self::assertTrue($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     */
+    public function it_does_not_change_when_removing_or_unsetting_a_missing_key(): void
+    {
+        $metadata = new Metadata(['foo' => 'bar']);
+        $metadata->remove('missing');
+        unset($metadata['missing']);
+
+        self::assertFalse($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider provideCallsThatDropAnExpiredKey
+     *
+     * @param \Closure(Metadata): mixed $call
+     */
+    public function it_changes_when_a_call_drops_an_expired_key(\Closure $call): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata([
+            'live' => 'value',
+            'expired' => 'value',
+            Metadata::EXPIRES_KEY => ['expired' => 999],
+        ]);
+
+        $call($metadata);
+
+        self::assertTrue($metadata->hasChanged());
+        // jsonSerialize() does not prune, so this proves the call dropped the expired key
+        self::assertSame(['live' => 'value'], $metadata->jsonSerialize());
+    }
+
+    /**
+     * Released versions of setono/client-bundle subclass Metadata and override remove() to notice dropped keys
+     *
+     * @test
+     *
+     * @dataProvider provideCallsThatDropAnExpiredKey
+     *
+     * @param \Closure(Metadata): mixed $call
+     */
+    public function it_drops_an_expired_key_through_remove(\Closure $call): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new class(['live' => 'value', 'expired' => 'value', Metadata::EXPIRES_KEY => ['expired' => 999]]) extends Metadata {
+            /** @var list<string> */
+            public array $removed = [];
+
+            public function remove(string $key): void
+            {
+                $this->removed[] = $key;
+
+                parent::remove($key);
+            }
+        };
+
+        $call($metadata);
+
+        self::assertSame(['expired'], $metadata->removed);
+    }
+
+    /**
+     * @test
+     */
+    public function it_changes_when_pruning_drops_an_expiry_without_a_value(): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata(['live' => 'value', Metadata::EXPIRES_KEY => ['orphan' => 999]]);
+
+        self::assertCount(1, $metadata);
+        self::assertTrue($metadata->hasChanged());
+        self::assertSame(['live' => 'value'], $metadata->jsonSerialize());
+    }
+
+    /**
+     * @test
+     */
+    public function it_does_not_change_when_reading_live_keys_or_json_serializing(): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata([
+            'live' => 'value',
+            'expiring' => 'value',
+            'expired' => 'value',
+            Metadata::EXPIRES_KEY => ['expiring' => 1_000, 'expired' => 999],
+        ]);
+
+        self::assertTrue($metadata->has('live'));
+        self::assertSame('value', $metadata->get('expiring'));
+        self::assertTrue(isset($metadata['live']));
+        self::assertSame('value', $metadata['live']);
+        self::assertArrayHasKey('expired', $metadata->jsonSerialize());
+
+        self::assertFalse($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     */
+    public function it_does_not_change_when_counting_iterating_or_exporting_without_expired_keys(): void
+    {
+        StaticClock::setTime(1_000);
+
+        $data = ['live' => 'value', 'expiring' => 'value', Metadata::EXPIRES_KEY => ['expiring' => 1_000]];
+        $metadata = new Metadata($data);
+
+        self::assertCount(2, $metadata);
+        self::assertSame(['live' => 'value', 'expiring' => 'value'], iterator_to_array($metadata));
+        self::assertSame($data, $metadata->toArray());
+
+        self::assertFalse($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     */
+    public function it_stays_changed_when_a_value_is_set_back(): void
+    {
+        $metadata = new Metadata(['foo' => 'bar']);
+        $metadata->set('foo', 'baz');
+        $metadata->set('foo', 'bar');
+
+        self::assertSame(['foo' => 'bar'], $metadata->toArray());
+        self::assertTrue($metadata->hasChanged());
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider provideRejectedCalls
+     *
+     * @param \Closure(Metadata): void $call
+     */
+    public function it_leaves_the_metadata_as_it_was_when_a_call_is_rejected(\Closure $call): void
+    {
+        $metadata = new Metadata(['foo' => 'bar']);
+
+        self::assertThrowsInvalidArgument(static function () use ($call, $metadata): void {
+            $call($metadata);
+        });
+        self::assertFalse($metadata->has('a'));
+        self::assertSame(['foo' => 'bar'], $metadata->toArray());
+        self::assertFalse($metadata->hasChanged());
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(Metadata): void}>
+     */
+    public static function provideRejectedCalls(): iterable
+    {
+        yield 'set() with a TTL of 0' => [static function (Metadata $metadata): void {
+            $metadata->set('a', 1, 0);
+        }];
+        yield 'set() with a TTL of -1' => [static function (Metadata $metadata): void {
+            $metadata->set('a', 1, -1);
+        }];
+        yield 'set() of the reserved key' => [static function (Metadata $metadata): void {
+            $metadata->set(Metadata::EXPIRES_KEY, ['a' => 1]);
+        }];
+        yield 'offsetSet() with a null offset' => [static function (Metadata $metadata): void {
+            $metadata[] = 1;
+        }];
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(Metadata): mixed}>
+     */
+    public static function provideCallsThatDropAnExpiredKey(): iterable
+    {
+        yield 'has()' => [static fn (Metadata $metadata): bool => $metadata->has('expired')];
+        yield 'get()' => [static function (Metadata $metadata): void {
+            self::assertThrowsInvalidArgument(static fn (): mixed => $metadata->get('expired'));
+        }];
+        yield 'offsetExists()' => [static fn (Metadata $metadata): bool => isset($metadata['expired'])];
+        yield 'offsetGet()' => [static function (Metadata $metadata): void {
+            self::assertThrowsInvalidArgument(static fn (): mixed => $metadata['expired']);
+        }];
+        yield 'count()' => [count(...)];
+        yield 'iteration' => [iterator_to_array(...)];
+        yield 'toArray()' => [static fn (Metadata $metadata): array => $metadata->toArray()];
+    }
+
+    /**
+     * @param \Closure(): mixed $call
+     */
+    private static function assertThrowsInvalidArgument(\Closure $call): void
+    {
+        try {
+            $call();
+        } catch (\InvalidArgumentException) {
+            return;
+        }
+
+        self::fail('Expected an InvalidArgumentException');
+    }
 }
