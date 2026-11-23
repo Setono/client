@@ -315,6 +315,28 @@ final class MetadataTest extends TestCase
 
     /**
      * @test
+     *
+     * @dataProvider provideSetsWithoutATtlOnAKeyWithAnExpiry
+     *
+     * @param array<string, mixed> $data
+     * @param \Closure(Metadata): void $set
+     */
+    public function it_clears_the_expiry_when_setting_without_a_ttl(array $data, \Closure $set): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata($data);
+        $set($metadata);
+
+        StaticClock::setTime(1_000_000);
+
+        self::assertTrue($metadata->has('foo'));
+        self::assertSame('baz', $metadata->get('foo'));
+        self::assertSame(['foo' => 'baz'], $metadata->toArray());
+    }
+
+    /**
+     * @test
      */
     public function it_has_not_changed_when_constructed(): void
     {
@@ -382,7 +404,7 @@ final class MetadataTest extends TestCase
     /**
      * @test
      */
-    public function it_does_not_change_when_setting_the_same_value_without_a_ttl(): void
+    public function it_does_not_change_when_setting_the_same_value_without_a_ttl_on_a_key_without_an_expiry(): void
     {
         StaticClock::setTime(1_000);
 
@@ -392,7 +414,6 @@ final class MetadataTest extends TestCase
             Metadata::EXPIRES_KEY => ['expiring' => 1_060],
         ]);
         $metadata->set('foo', ['a' => 1]);
-        $metadata->set('expiring', 'value');
 
         self::assertFalse($metadata->hasChanged());
         self::assertSame([
@@ -400,6 +421,22 @@ final class MetadataTest extends TestCase
             'expiring' => 'value',
             Metadata::EXPIRES_KEY => ['expiring' => 1_060],
         ], $metadata->toArray());
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider provideLiveAndPassedExpiries
+     */
+    public function it_changes_when_setting_the_same_value_without_a_ttl_clears_an_expiry(int $expiresAt): void
+    {
+        StaticClock::setTime(1_000);
+
+        $metadata = new Metadata(['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => $expiresAt]]);
+        $metadata->set('foo', 'bar');
+
+        self::assertTrue($metadata->hasChanged());
+        self::assertSame(['foo' => 'bar'], $metadata->jsonSerialize());
     }
 
     /**
@@ -606,6 +643,50 @@ final class MetadataTest extends TestCase
         yield 'offsetSet() with a null offset' => [static function (Metadata $metadata): void {
             $metadata[] = 1;
         }];
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, \Closure(Metadata): void}>
+     */
+    public static function provideSetsWithoutATtlOnAKeyWithAnExpiry(): iterable
+    {
+        $set = static function (Metadata $metadata): void {
+            $metadata->set('foo', 'baz');
+        };
+
+        yield 'set() on a key whose expiry has passed' => [
+            ['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => 900]],
+            $set,
+        ];
+        yield 'set() on a key with a live expiry' => [
+            ['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => 1_060]],
+            $set,
+        ];
+        yield 'set() on a key that only has a restored expiry' => [
+            [Metadata::EXPIRES_KEY => ['foo' => 1_060]],
+            $set,
+        ];
+        $offsetSet = static function (Metadata $metadata): void {
+            $metadata['foo'] = 'baz';
+        };
+
+        yield 'offsetSet() on a key whose expiry has passed' => [
+            ['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => 900]],
+            $offsetSet,
+        ];
+        yield 'offsetSet() on a key with a live expiry' => [
+            ['foo' => 'bar', Metadata::EXPIRES_KEY => ['foo' => 1_060]],
+            $offsetSet,
+        ];
+    }
+
+    /**
+     * @return iterable<string, array{int}>
+     */
+    public static function provideLiveAndPassedExpiries(): iterable
+    {
+        yield 'a live expiry' => [1_060];
+        yield 'an expiry that has passed' => [900];
     }
 
     /**

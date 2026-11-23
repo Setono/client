@@ -80,6 +80,14 @@ returned by `get()`/`has()` and are excluded from iteration and `count()`.
 $metadata->set('promo', 'BLACKFRIDAY', ttl: 3600);
 ```
 
+`set()` without a TTL stores the key with no expiry, and removes any expiry the key had. To change a value and keep it
+expiring, pass the TTL again:
+
+```php
+$metadata->set('promo', 'CYBERMONDAY');            // "promo" no longer expires
+$metadata->set('promo', 'CYBERMONDAY', ttl: 3600); // expires one hour from now again
+```
+
 #### Tracking changes
 
 `hasChanged()` tells you whether anything has altered the values or expiry times since the object was created, so you
@@ -90,13 +98,13 @@ $metadata = new Metadata($storedData);
 $metadata->hasChanged(); // false, whatever data it was given
 
 $metadata->set('plan', 'pro');
-$metadata->hasChanged(); // true, unless 'plan' already held 'pro'
+$metadata->hasChanged(); // true, unless 'plan' already held 'pro' with no expiry
 ```
 
 A call counts as a change when the values or expiry times after it differ from those before it:
 
-- `set()` of a new key, of a different value (compared with `!==`), or with a TTL that moves the key's expiry. Setting a
-  key to the value and expiry it already has is not a change.
+- `set()` of a new key, of a different value (compared with `!==`), with a TTL that moves the key's expiry, or without a
+  TTL on a key that has an expiry. Setting a key to the value and expiry it already has is not a change.
 - `remove()` or `unset()` of a key that exists.
 - Dropping an expired key, whichever call drops it: `has()`, `get()`, array access, `count()`, iteration or `toArray()`.
 
