@@ -111,6 +111,36 @@ A call counts as a change when the values or expiry times after it differ from t
 Reading live keys and `jsonSerialize()` are not changes, and neither is a call that throws. Once `hasChanged()` returns
 `true` it stays `true`: setting a value back doesn't undo it, and nothing resets it.
 
+#### Loading lazily
+
+`Metadata::lazy()` creates metadata whose data a loader provides on first use, so a request that never uses the
+metadata doesn't have to fetch it. The loader takes no arguments and returns what the constructor takes, including the
+reserved `__expires` key:
+
+```php
+$metadata = Metadata::lazy(fn (): array => $repository->find($clientId) ?? []);
+
+$metadata->hasChanged(); // false, and the loader hasn't been called
+$metadata->get('plan');  // calls the loader, then reads 'plan'
+```
+
+The first call that reads or alters the metadata calls the loader: `has()`, `get()`, `set()`, `remove()`, array access,
+`count()`, iteration, `toArray()` or `jsonSerialize()`. No later call calls it again. Loading isn't a change: once
+loaded, the metadata behaves exactly like `new Metadata($data)` with the loader's `$data`. If the loader throws, the
+exception reaches you, the metadata stays unloaded, and the next call calls the loader again.
+
+`hasChanged()` never calls the loader. Lazy metadata that was never loaded hasn't changed, so you can skip storing it
+without fetching it:
+
+```php
+if ($metadata->hasChanged()) {
+    $repository->store($clientId, $metadata->toArray());
+}
+```
+
+Serializing lazy metadata loads it first, and unserializing gives metadata that isn't lazy. A clone of lazy metadata
+that hasn't loaded is lazy too, and calls the loader on its own first use.
+
 ### Persisting and restoring
 
 `Metadata::toArray()` returns everything needed to rebuild the object — including the expiry bookkeeping — so you can
